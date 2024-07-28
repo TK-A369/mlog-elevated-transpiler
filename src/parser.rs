@@ -2,76 +2,61 @@ use std::collections::BTreeMap;
 
 use crate::tokenizer::*;
 
-trait ParseableTrait {
-    fn parse(&self, tokens: &[Token], pos: &mut usize) -> Result<Box<dyn ASTTrait>, String>;
+enum ASTNode {
+    ProgramAST(ProgramAST),
+    GlobalVariableAST(GlobalVariableAST),
+    FunctionAST(FunctionAST),
 }
 
-struct Parseable<ParsedT> {
-    parse_fn: fn(&[Token], &mut usize) -> Result<ParsedT, String>,
-}
-
-impl<ParsedT: ASTTrait + 'static> ParseableTrait for Parseable<ParsedT> {
-    fn parse(&self, tokens: &[Token], pos: &mut usize) -> Result<Box<dyn ASTTrait>, String> {
-        match (self.parse_fn)(tokens, pos) {
-            Ok(parsed) => Ok(Box::new(parsed)),
-            Err(err) => Err(err),
-        }
-    }
-}
-
-/*impl<ParsedT> Parseable<ParsedT> {
-    type FnT = fn(&[Token], &mut usize) -> Result<ParsedT, String>;
-}*/
-
-fn try_parseables(
-    tokens: &[Token],
-    pos: &mut usize,
-    parseables: &[Box<dyn ParseableTrait>],
-) -> Result<Box<dyn ASTTrait>, String> {
-    let mut errors = Vec::<String>::new();
-    for parseable in parseables {
-        match parseable.parse(tokens, pos) {
-            Ok(result) => {
-                return Ok(result);
-            }
-            Err(err) => {
-                errors.push(err);
-            }
-        }
-    }
-    let mut err_msg = String::from("None of parseables worked");
-    for e in errors {
-        err_msg.push('\n');
-        err_msg.push_str(&e);
-    }
-    Err(err_msg)
-}
-
-trait ASTTrait {}
-
-struct ProgramAST {
+#[derive(Debug)]
+pub struct ProgramAST {
     variables: BTreeMap<String, GlobalVariableAST>,
     functions: BTreeMap<String, FunctionAST>,
 }
-impl ASTTrait for ProgramAST {}
+impl ProgramAST {
+    fn new() -> Self {
+        Self {
+            variables: BTreeMap::new(),
+            functions: BTreeMap::new(),
+        }
+    }
+}
 
-struct GlobalVariableAST {
+#[derive(Debug)]
+pub struct GlobalVariableAST {
     name: String,
 }
-impl ASTTrait for GlobalVariableAST {}
 
-struct FunctionAST {
+#[derive(Debug)]
+pub struct FunctionAST {
     name: String,
 }
-impl ASTTrait for FunctionAST {}
 
 pub fn parse_program(tokens: &[Token]) -> Result<ProgramAST, String> {
     let mut pos: usize = 0;
 
+    let mut program_ast = ProgramAST::new();
+
     while pos < tokens.len() {
-        todo!();
+        let parsing_result = parse_global_variable(tokens, &mut pos)
+            .and_then(|x| Ok(ASTNode::GlobalVariableAST(x)))
+            .or_else(|_| {
+                parse_function(tokens, &mut pos).and_then(|x| Ok(ASTNode::FunctionAST(x)))
+            });
+        match parsing_result {
+            Ok(ASTNode::GlobalVariableAST(global_var)) => {
+                program_ast
+                    .variables
+                    .insert(global_var.name.clone(), global_var);
+            }
+            Ok(ASTNode::FunctionAST(func)) => {
+                program_ast.functions.insert(func.name.clone(), func);
+            }
+            Ok(_) => unreachable!(),
+            Err(err) => return Err(err),
+        }
     }
-    Err(String::from("TODO"))
+    Ok(program_ast)
 }
 
 fn parse_global_variable(tokens: &[Token], pos: &mut usize) -> Result<GlobalVariableAST, String> {

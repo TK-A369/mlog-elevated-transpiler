@@ -20,4 +20,8 @@ fn main() {
     let tokens = tokenizer::tokenize(file_contents.as_str()).unwrap();
 
     println!("Tokens:\n{:?}", tokens);
+
+    let ast = parser::parse_program(&tokens).unwrap();
+
+    println!("AST:\n{:?}", ast);
 }
