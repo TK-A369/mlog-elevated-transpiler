@@ -57,6 +57,51 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                     char_iter.next();
                 }
             }
+            '"' => {
+                let mut string_content = String::new();
+                let mut str_total_len = 1;
+                let mut str_char_iter = char_iter.clone();
+                while let Some(str_ch) = str_char_iter.next() {
+                    match str_ch {
+                        '\\' => {
+                            let next_ch = match str_char_iter.next() {
+                                Some(some_ch) => some_ch,
+                                None => {
+                                    return Err(String::from(
+                                        "Expected appropriate character after '\\'",
+                                    ));
+                                }
+                            };
+                            match next_ch {
+                                '\\' => string_content.push('\\'),
+                                '\"' => string_content.push('\"'),
+                                'n' => string_content.push('\n'),
+                                _ => {
+                                    return Err(format!(
+                                        "Unknown escape sequence \"\\{}\"",
+                                        next_ch
+                                    ))
+                                }
+                            }
+                            str_total_len += 2;
+                        }
+                        '\"' => {
+                            str_total_len += 1;
+                        }
+                        other_ch => {
+                            string_content.push(other_ch);
+                            str_total_len += 1;
+                        }
+                    }
+                }
+
+                for _i in 0..(str_total_len - 1) {
+                    char_iter.next();
+                }
+            }
+            number if number.is_digit(10) => {
+                //TODO
+            }
             '{' => {
                 result.push(Token::Keyword(Keyword::LeftCurly));
             }
