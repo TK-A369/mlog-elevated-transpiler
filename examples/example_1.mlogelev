@@ -1,29 +1,29 @@
 fn main() {
-	let myUnit;
-	myUnit = radar("ally", "any", "any", "distance", @this, 1);
-	ubind(myUnit);
-	let i;
-	i = 0;
+	let myUnit
+	myUnit = radar("ally", "any", "any", "distance", @this, 1)
+	ubind(myUnit)
+	let i
+	i = 0
 	while true {
-		let desiredX;
-		let desiredY;
-		if i == 0 {
-			desiredX = @thisx;
-			desiredY = @thisy + 5;
+		let desiredX
+		let desiredY
+		if equal(i, 0) {
+			desiredX = @thisx
+			desiredY = add(@thisy, 5)
 		}
 		else {
-			desiredX = @thisx - 10;
-			desiredY = @thisy;
+			desiredX = sub(@thisx, 10)
+			desiredY = @thisy
 		}
-		ucontrolMove(desiredX, desiredY);
-		let didArrive;
+		ucontrolMove(desiredX, desiredY)
+		let didArrive
 		didArrive = 0
-		while didArrive == 0 {
-			didArrive = ucontrolWithin(desiredX, desiredY, 1);
+		while equal(didArrive, 0) {
+			didArrive = ucontrolWithin(desiredX, desiredY, 1)
 		}
-		i = i + 1
-		if i == 2 {
-			i = 0;
+		i = add(i, 1)
+		if equal(i, 2) {
+			i = 0
 		}
 	}
 }
