@@ -4,7 +4,7 @@ fn main() {
 	ubind(myUnit)
 	let i
 	i = 0
-	while true {
+	while 1 {
 		let desiredX
 		let desiredY
 		if equal(i, 0) {

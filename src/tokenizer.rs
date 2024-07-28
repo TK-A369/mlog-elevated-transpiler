@@ -7,6 +7,7 @@ pub enum Keyword {
     LeftParenthese,
     RightParenthese,
     Assign,
+    Comma,
 }
 
 #[derive(Debug)]
@@ -23,27 +24,25 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
     let mut line_counter: usize = 1;
     let mut column_counter: usize = 1;
     //let mut prev_newline_char: Option<char> = None;
-    fn handle_newline(line_counter: &mut usize, column_counter: &mut usize) {
-        *line_counter += 1;
-        *column_counter = 1;
-    }
 
-    let mut char_iter = code.chars();
-    while let Some(ch) = char_iter.next() {
+    let mut char_iter = code.chars().peekable();
+    while let Some(ch) = char_iter.peek() {
+        println!("Current character: \'{}\'", ch);
         match ch {
             letter if letter.is_alphabetic() || matches!(letter, '_' | '@') => {
                 //Either keyword or identifier
                 let mut identifier = String::new();
-                identifier.push(letter);
+                identifier.push(*letter);
+                char_iter.next();
                 let mut ident_len = 1;
-                let mut ident_char_iter = char_iter.clone();
-                for ident_ch in ident_char_iter {
-                    if ident_ch.is_alphanumeric() || ident_ch == '_' {
-                        identifier.push(ident_ch);
+                while let Some(ident_ch) = char_iter.peek() {
+                    if ident_ch.is_alphanumeric() || *ident_ch == '_' {
+                        identifier.push(*ident_ch);
+                        char_iter.next();
+                        ident_len += 1;
                     } else {
                         break;
                     }
-                    ident_len += 1;
                 }
 
                 let token = match identifier.as_str() {
@@ -52,19 +51,16 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                     _ => Token::Identifier(identifier),
                 };
                 result.push(token);
-
-                for _i in 0..(ident_len - 1) {
-                    char_iter.next();
-                }
+                column_counter += ident_len;
             }
             '"' => {
                 let mut string_content = String::new();
                 let mut str_total_len = 1;
-                let mut str_char_iter = char_iter.clone();
-                while let Some(str_ch) = str_char_iter.next() {
+                char_iter.next();
+                while let Some(str_ch) = char_iter.next() {
                     match str_ch {
                         '\\' => {
-                            let next_ch = match str_char_iter.next() {
+                            let next_ch = match char_iter.next() {
                                 Some(some_ch) => some_ch,
                                 None => {
                                     return Err(String::from(
@@ -87,6 +83,7 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                         }
                         '\"' => {
                             str_total_len += 1;
+                            break;
                         }
                         other_ch => {
                             string_content.push(other_ch);
@@ -94,33 +91,54 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                         }
                     }
                 }
-
-                for _i in 0..(str_total_len - 1) {
-                    char_iter.next();
-                }
+                result.push(Token::String(string_content));
+                column_counter += str_total_len;
             }
             number if number.is_digit(10) => {
                 //TODO
+                char_iter.next();
+                column_counter += 1;
             }
             '{' => {
+                char_iter.next();
                 result.push(Token::Keyword(Keyword::LeftCurly));
+                column_counter += 1;
             }
             '}' => {
+                char_iter.next();
                 result.push(Token::Keyword(Keyword::RightCurly));
+                column_counter += 1;
             }
             '(' => {
+                char_iter.next();
                 result.push(Token::Keyword(Keyword::LeftParenthese));
+                column_counter += 1;
             }
             ')' => {
+                char_iter.next();
                 result.push(Token::Keyword(Keyword::RightParenthese));
+                column_counter += 1;
             }
             '=' => {
+                char_iter.next();
                 result.push(Token::Keyword(Keyword::Assign));
+                column_counter += 1;
             }
-            ' ' | '\t' => {}
-            '\r' => { //Sorry macOS users, no line counting for you
+            ',' => {
+                char_iter.next();
+                result.push(Token::Keyword(Keyword::Comma));
+                column_counter += 1;
+            }
+            ' ' | '\t' => {
+                char_iter.next();
+                column_counter += 1;
+            }
+            '\r' => {
+                //Sorry macOS users, no line counting for you
+                char_iter.next();
             }
             '\n' => {
+                char_iter.next();
                 line_counter += 1;
                 column_counter = 1;
             }
