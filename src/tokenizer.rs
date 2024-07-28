@@ -95,9 +95,26 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                 column_counter += str_total_len;
             }
             number if number.is_digit(10) => {
-                //TODO
-                char_iter.next();
-                column_counter += 1;
+                let mut number_content = String::new();
+                while let Some(digit) = char_iter.peek() {
+                    if digit.is_digit(10) || *digit == '.' {
+                        number_content.push(*digit);
+                        char_iter.next();
+                        column_counter += 1;
+                    } else {
+                        break;
+                    }
+                }
+                let number_parsed = match number_content.parse::<f64>() {
+                    Ok(n_p) => n_p,
+                    Err(e) => {
+                        return Err(format!(
+                            "Error occurred when parsing number \"{}\": {}",
+                            number_content, e
+                        ));
+                    }
+                };
+                result.push(Token::Number(number_parsed));
             }
             '{' => {
                 char_iter.next();
