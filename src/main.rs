@@ -26,5 +26,5 @@ fn main() {
 
     let ast = parser::parse_program(&tokens).unwrap();
 
-    println!("AST:\n{:?}", ast);
+    println!("AST:\n{:#?}", ast);
 }

@@ -387,6 +387,8 @@ fn parse_if(tokens: &[Token], pos: &mut usize) -> Result<IfAST, String> {
                     match parse_statement_block(tokens, pos) {
                         Ok(then_block) => match &tokens[*pos] {
                             Token::Keyword(Keyword::Else) => {
+                                *pos += 1;
+
                                 //Else block
                                 match parse_statement_block(tokens, pos) {
                                     Ok(else_block) => Ok(IfAST {
