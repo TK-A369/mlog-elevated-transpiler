@@ -2,6 +2,9 @@
 pub enum Keyword {
     Fn,
     Let,
+    If,
+    Else,
+    While,
     LeftCurly,
     RightCurly,
     LeftParenthese,
@@ -48,6 +51,9 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                 let token = match identifier.as_str() {
                     "fn" => Token::Keyword(Keyword::Fn),
                     "let" => Token::Keyword(Keyword::Let),
+                    "if" => Token::Keyword(Keyword::If),
+                    "else" => Token::Keyword(Keyword::Else),
+                    "while" => Token::Keyword(Keyword::While),
                     _ => Token::Identifier(identifier),
                 };
                 result.push(token);

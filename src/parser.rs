@@ -44,10 +44,25 @@ pub struct AssignmentAST {
 }
 
 #[derive(Debug)]
+pub struct IfAST {
+    condition: ExpressionASTNode,
+    then_block: Vec<StatementASTNode>,
+    else_block: Vec<StatementASTNode>,
+}
+
+#[derive(Debug)]
+pub struct WhileAST {
+    condition: ExpressionASTNode,
+    do_block: Vec<StatementASTNode>,
+}
+
+#[derive(Debug)]
 pub enum StatementASTNode {
     LocalVariableAST(LocalVariableAST),
     AssignmentAST(AssignmentAST),
     ExpressionAST(ExpressionASTNode),
+    IfAST(IfAST),
+    WhileAST(WhileAST),
 }
 
 #[derive(Debug)]
@@ -210,7 +225,9 @@ fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<StatementASTNode
         })
         .or_else(|_| {
             parse_expression(tokens, pos).and_then(|x| Ok(StatementASTNode::ExpressionAST(x)))
-        });
+        })
+        .or_else(|_| parse_if(tokens, pos).and_then(|x| Ok(StatementASTNode::IfAST(x))))
+        .or_else(|_| parse_while(tokens, pos).and_then(|x| Ok(StatementASTNode::WhileAST(x))));
     match parsing_result {
         Ok(statement) => {
             println!("parse_statement ok @ token {}", pos_orig);
@@ -354,5 +371,84 @@ fn parse_variable_reference(tokens: &[Token], pos: &mut usize) -> Result<String,
             Ok(ident.clone())
         }
         _ => Err(String::from("Invalid variable reference")),
+    }
+}
+
+fn parse_if(tokens: &[Token], pos: &mut usize) -> Result<IfAST, String> {
+    let pos_orig = *pos;
+    match &tokens[*pos] {
+        Token::Keyword(Keyword::If) => {
+            *pos += 1;
+
+            //Condition
+            match parse_expression(tokens, pos) {
+                Ok(condition_expr) => {
+                    //Then block
+                    match parse_statement_block(tokens, pos) {
+                        Ok(then_block) => match &tokens[*pos] {
+                            Token::Keyword(Keyword::Else) => {
+                                //Else block
+                                match parse_statement_block(tokens, pos) {
+                                    Ok(else_block) => Ok(IfAST {
+                                        condition: condition_expr,
+                                        then_block,
+                                        else_block,
+                                    }),
+                                    Err(err) => {
+                                        *pos = pos_orig;
+                                        Err(err)
+                                    }
+                                }
+                            }
+                            _ => Ok(IfAST {
+                                condition: condition_expr,
+                                then_block,
+                                else_block: Vec::new(),
+                            }),
+                        },
+                        Err(err) => {
+                            *pos = pos_orig;
+                            Err(err)
+                        }
+                    }
+                }
+                Err(err) => {
+                    *pos = pos_orig;
+                    Err(err)
+                }
+            }
+        }
+        _ => Err(String::from("Invalid if statement")),
+    }
+}
+
+fn parse_while(tokens: &[Token], pos: &mut usize) -> Result<WhileAST, String> {
+    let pos_orig = *pos;
+    match &tokens[*pos] {
+        Token::Keyword(Keyword::While) => {
+            *pos += 1;
+
+            //Condition
+            match parse_expression(tokens, pos) {
+                Ok(condition_expr) => {
+                    //Do block
+                    match parse_statement_block(tokens, pos) {
+                        Ok(do_block) => Ok(WhileAST {
+                            condition: condition_expr,
+                            do_block,
+                        }),
+                        Err(err) => {
+                            *pos = pos_orig;
+                            Err(err)
+                        }
+                    }
+                }
+                Err(err) => {
+                    *pos = pos_orig;
+                    Err(err)
+                }
+            }
+        }
+        _ => Err(String::from("Invalid while statement")),
     }
 }
