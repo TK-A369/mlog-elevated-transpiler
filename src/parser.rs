@@ -116,6 +116,8 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
         ) => {
             *pos += 3;
             let mut params = Vec::<String>::new();
+
+            //Parameters
             loop {
                 match &tokens[*pos] {
                     Token::Identifier(param_name) => {
@@ -129,10 +131,11 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
                                 *pos += 2;
                             }
                             other => {
+                                *pos = pos_orig;
                                 return Err(format!(
                                     "Expected either \")\" or \",\", but got \"{:?}\"",
                                     other
-                                ))
+                                ));
                             }
                         }
                     }
@@ -141,16 +144,59 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
                         break;
                     }
                     other => {
+                        *pos = pos_orig;
                         return Err(format!(
                             "Expected either identifier or \")\", but got \"{:?}\"",
                             other
-                        ))
+                        ));
                     }
                 }
             }
-            todo!();
+
+            // Statement block
+            match parse_statement_block(tokens, pos) {
+                Ok(statements) => Ok(FunctionAST {
+                    name: fn_name.clone(),
+                    statements,
+                }),
+                Err(err) => {
+                    *pos = pos_orig;
+                    return Err(err);
+                }
+            }
         }
         _ => Err(String::from("Invalid function definition")),
+    }
+}
+
+fn parse_statement_block(
+    tokens: &[Token],
+    pos: &mut usize,
+) -> Result<Vec<StatementASTNode>, String> {
+    let pos_orig = *pos;
+    match tokens[*pos] {
+        Token::Keyword(Keyword::LeftCurly) => {
+            *pos += 1;
+            let mut statements = Vec::<StatementASTNode>::new();
+            loop {
+                if matches!(tokens[*pos], Token::Keyword(Keyword::RightCurly)) {
+                    *pos += 1;
+                    break;
+                }
+                let statement_parse_result = parse_statement(tokens, pos);
+                match statement_parse_result {
+                    Ok(statement) => {
+                        statements.push(statement);
+                    }
+                    Err(err) => {
+                        *pos = pos_orig;
+                        return Err(err);
+                    }
+                }
+            }
+            Ok(statements)
+        }
+        _ => Err(String::from("Invalid statement block")),
     }
 }
 
