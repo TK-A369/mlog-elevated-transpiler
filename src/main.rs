@@ -19,7 +19,10 @@ fn main() {
 
     let tokens = tokenizer::tokenize(file_contents.as_str()).unwrap();
 
-    println!("Tokens:\n{:?}", tokens);
+    println!("Tokens:");
+    for (i, token) in tokens.iter().enumerate() {
+        println!("{}\t{:?}", i, token);
+    }
 
     let ast = parser::parse_program(&tokens).unwrap();
 
