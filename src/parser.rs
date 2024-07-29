@@ -61,6 +61,7 @@ pub enum ExpressionASTNode {
     FunctionCallAST(FunctionCallAST),
     StringLiteral(String),
     NumberLiteral(f64),
+    VariableReference(String),
 }
 
 pub fn parse_program(tokens: &[Token]) -> Result<ProgramAST, String> {
@@ -201,6 +202,7 @@ fn parse_statement_block(
 }
 
 fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<StatementASTNode, String> {
+    let pos_orig = *pos;
     let parsing_result = parse_local_variable(tokens, pos)
         .and_then(|x| Ok(StatementASTNode::LocalVariableAST(x)))
         .or_else(|_| {
@@ -209,7 +211,13 @@ fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<StatementASTNode
         .or_else(|_| {
             parse_expression(tokens, pos).and_then(|x| Ok(StatementASTNode::ExpressionAST(x)))
         });
-    parsing_result
+    match parsing_result {
+        Ok(statement) => {
+            println!("parse_statement ok @ token {}", pos_orig);
+            Ok(statement)
+        }
+        Err(_) => Err(String::from("Invalid statement")),
+    }
 }
 
 fn parse_local_variable(tokens: &[Token], pos: &mut usize) -> Result<LocalVariableAST, String> {
@@ -234,10 +242,13 @@ fn parse_assignment(tokens: &[Token], pos: &mut usize) -> Result<AssignmentAST, 
         (Token::Identifier(target_var_name), Token::Keyword(Keyword::Assign)) => {
             *pos += 2;
             match parse_expression(tokens, pos) {
-                Ok(expression) => Ok(AssignmentAST {
-                    target_var_name: target_var_name.clone(),
-                    value: expression,
-                }),
+                Ok(expression) => {
+                    println!("parse_assignment ok @ token {}", pos_orig);
+                    Ok(AssignmentAST {
+                        target_var_name: target_var_name.clone(),
+                        value: expression,
+                    })
+                }
                 Err(err) => {
                     *pos = pos_orig;
                     Err(err)
@@ -259,6 +270,10 @@ fn parse_expression(tokens: &[Token], pos: &mut usize) -> Result<ExpressionASTNo
         })
         .or_else(|_| {
             parse_number_literal(tokens, pos).and_then(|x| Ok(ExpressionASTNode::NumberLiteral(x)))
+        })
+        .or_else(|_| {
+            parse_variable_reference(tokens, pos)
+                .and_then(|x| Ok(ExpressionASTNode::VariableReference(x)))
         });
 
     match parsing_result {
@@ -293,12 +308,12 @@ fn parse_function_call(tokens: &[Token], pos: &mut usize) -> Result<FunctionCall
                     }
                 }
 
-                if matches!(
-                    &tokens[*pos],
-                    Token::Keyword(Keyword::RightParenthese) | Token::Keyword(Keyword::Comma)
-                ) {
+                if matches!(&tokens[*pos], Token::Keyword(Keyword::RightParenthese)) {
                     *pos += 1;
                     break;
+                }
+                if matches!(&tokens[*pos], Token::Keyword(Keyword::Comma)) {
+                    *pos += 1;
                 }
             }
 
@@ -329,5 +344,15 @@ fn parse_number_literal(tokens: &[Token], pos: &mut usize) -> Result<f64, String
             Ok(*num)
         }
         _ => Err(String::from("Invalid number literal")),
+    }
+}
+
+fn parse_variable_reference(tokens: &[Token], pos: &mut usize) -> Result<String, String> {
+    match &tokens[*pos] {
+        Token::Identifier(ident) => {
+            *pos += 1;
+            Ok(ident.clone())
+        }
+        _ => Err(String::from("Invalid variable reference")),
     }
 }
