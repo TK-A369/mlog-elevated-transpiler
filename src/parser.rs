@@ -233,7 +233,16 @@ fn parse_assignment(tokens: &[Token], pos: &mut usize) -> Result<AssignmentAST, 
     match (&tokens[*pos], &tokens[*pos + 1]) {
         (Token::Identifier(target_var_name), Token::Keyword(Keyword::Assign)) => {
             *pos += 2;
-            todo!();
+            match parse_expression(tokens, pos) {
+                Ok(expression) => Ok(AssignmentAST {
+                    target_var_name: target_var_name.clone(),
+                    value: expression,
+                }),
+                Err(err) => {
+                    *pos = pos_orig;
+                    Err(err)
+                }
+            }
         }
         _ => Err(String::from("Invalid assignment")),
     }
