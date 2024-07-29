@@ -29,6 +29,7 @@ pub struct GlobalVariableAST {
 #[derive(Debug)]
 pub struct FunctionAST {
     name: String,
+    statements: Vec<StatementASTNode>,
 }
 
 #[derive(Debug)]
@@ -114,7 +115,7 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
             Token::Keyword(Keyword::LeftParenthese),
         ) => {
             *pos += 3;
-            let params = Vec::<String>::new();
+            let mut params = Vec::<String>::new();
             loop {
                 match &tokens[*pos] {
                     Token::Identifier(param_name) => {
@@ -147,13 +148,22 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
                     }
                 }
             }
+            todo!();
         }
         _ => Err(String::from("Invalid function definition")),
     }
 }
 
 fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<StatementASTNode, String> {
-    let parsing_result;
+    let parsing_result = parse_local_variable(tokens, pos)
+        .and_then(|x| Ok(StatementASTNode::LocalVariableAST(x)))
+        .or_else(|_| {
+            parse_assignment(tokens, pos).and_then(|x| Ok(StatementASTNode::AssignmentAST(x)))
+        })
+        .or_else(|_| {
+            parse_expression(tokens, pos).and_then(|x| Ok(StatementASTNode::ExpressionAST(x)))
+        });
+    parsing_result
 }
 
 fn parse_local_variable(tokens: &[Token], pos: &mut usize) -> Result<LocalVariableAST, String> {
@@ -183,4 +193,6 @@ fn parse_assignment(tokens: &[Token], pos: &mut usize) -> Result<AssignmentAST, 
     }
 }
 
-fn parse_expression(tokens: &[Token], pos: &mut usize) -> Result<ExpressionASTNode, String> {}
+fn parse_expression(tokens: &[Token], pos: &mut usize) -> Result<ExpressionASTNode, String> {
+    todo!();
+}
