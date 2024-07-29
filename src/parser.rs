@@ -249,5 +249,85 @@ fn parse_assignment(tokens: &[Token], pos: &mut usize) -> Result<AssignmentAST, 
 }
 
 fn parse_expression(tokens: &[Token], pos: &mut usize) -> Result<ExpressionASTNode, String> {
-    todo!();
+    let parsing_result = parse_function_call(tokens, pos)
+        .and_then(|x| {
+            println!("parse_expression -> parse_function_call ok");
+            Ok(ExpressionASTNode::FunctionCallAST(x))
+        })
+        .or_else(|_| {
+            parse_string_literal(tokens, pos).and_then(|x| Ok(ExpressionASTNode::StringLiteral(x)))
+        })
+        .or_else(|_| {
+            parse_number_literal(tokens, pos).and_then(|x| Ok(ExpressionASTNode::NumberLiteral(x)))
+        });
+
+    match parsing_result {
+        Ok(expr) => Ok(expr),
+        Err(_) => Err(String::from("Invalid expression")),
+    }
+}
+
+fn parse_function_call(tokens: &[Token], pos: &mut usize) -> Result<FunctionCallAST, String> {
+    let pos_orig = *pos;
+
+    match (&tokens[*pos], &tokens[*pos + 1]) {
+        (Token::Identifier(fn_name), Token::Keyword(Keyword::LeftParenthese)) => {
+            *pos += 2;
+
+            //Arguments
+            let mut args = Vec::<ExpressionASTNode>::new();
+            loop {
+                if matches!(&tokens[*pos], Token::Keyword(Keyword::RightParenthese)) {
+                    *pos += 1;
+                    break;
+                }
+
+                let expr_parse_result = parse_expression(tokens, pos);
+                match expr_parse_result {
+                    Ok(arg_expr) => {
+                        args.push(arg_expr);
+                    }
+                    Err(err) => {
+                        *pos = pos_orig;
+                        return Err(err);
+                    }
+                }
+
+                if matches!(
+                    &tokens[*pos],
+                    Token::Keyword(Keyword::RightParenthese) | Token::Keyword(Keyword::Comma)
+                ) {
+                    *pos += 1;
+                    break;
+                }
+            }
+
+            println!("parse_function_call ok @ token {}", pos_orig);
+            Ok(FunctionCallAST {
+                function_name: fn_name.clone(),
+                args,
+            })
+        }
+        _ => Err(String::from("Invalid function call")),
+    }
+}
+
+fn parse_string_literal(tokens: &[Token], pos: &mut usize) -> Result<String, String> {
+    match &tokens[*pos] {
+        Token::String(str) => {
+            *pos += 1;
+            Ok(str.clone())
+        }
+        _ => Err(String::from("Invalid string literal")),
+    }
+}
+
+fn parse_number_literal(tokens: &[Token], pos: &mut usize) -> Result<f64, String> {
+    match &tokens[*pos] {
+        Token::Number(num) => {
+            *pos += 1;
+            Ok(*num)
+        }
+        _ => Err(String::from("Invalid number literal")),
+    }
 }
