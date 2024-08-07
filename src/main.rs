@@ -1,6 +1,6 @@
+mod mlog_generator;
 mod parser;
 mod tokenizer;
-mod mlog_generator;
 
 use clap;
 use clap::Parser;
@@ -28,4 +28,8 @@ fn main() {
     let ast = parser::parse_program(&tokens).unwrap();
 
     println!("AST:\n{:#?}", ast);
+
+    let mlog_code = ast.generate();
+
+    println!("Generted MLOG code:\n{}", mlog_code);
 }

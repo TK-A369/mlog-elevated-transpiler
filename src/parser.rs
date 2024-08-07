@@ -72,13 +72,13 @@ pub enum StatementASTNode {
     WhileAST(WhileAST),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FunctionCallAST {
     pub(crate) function_name: String,
     pub(crate) args: Vec<ExpressionASTNode>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ExpressionASTNode {
     FunctionCallAST(FunctionCallAST),
     StringLiteral(String),
