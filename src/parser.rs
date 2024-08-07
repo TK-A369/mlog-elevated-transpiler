@@ -4,8 +4,8 @@ use crate::tokenizer::*;
 
 #[derive(Debug)]
 pub struct ProgramAST {
-    variables: BTreeMap<String, GlobalVariableAST>,
-    functions: BTreeMap<String, FunctionAST>,
+    pub(crate) variables: BTreeMap<String, GlobalVariableAST>,
+    pub(crate) functions: BTreeMap<String, FunctionAST>,
 }
 impl ProgramAST {
     fn new() -> Self {
@@ -27,7 +27,7 @@ pub struct GlobalVariableAST {
 }
 
 #[derive(Debug)]
-enum FunctionStyle {
+pub(crate) enum FunctionStyle {
     Normal,
     Inline,
 }
@@ -36,7 +36,7 @@ enum FunctionStyle {
 pub struct FunctionAST {
     name: String,
     pub(crate) statements: Vec<StatementASTNode>,
-    style: FunctionStyle,
+    pub(crate) style: FunctionStyle,
 }
 
 #[derive(Clone, Debug)]

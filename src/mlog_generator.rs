@@ -9,16 +9,12 @@ impl ProgramAST {
 }
 
 impl FunctionAST {
-    fn generate(&self, global_variables: &[GlobalVariableAST], uid: &mut usize) -> String {
+    fn generate(&self, program_ast: &ProgramAST, uid: &mut usize) -> String {
         let mut result_code = String::new();
-        let mut local_variables = Vec::<LocalVariableAST>::new();
+        let mut local_variables = Vec::<Vec<LocalVariableAST>>::new();
+        local_variables.push(Vec::<LocalVariableAST>::new());
         for statement in &self.statements {
-            statement.generate(
-                global_variables,
-                &mut local_variables,
-                &mut result_code,
-                uid,
-            );
+            statement.generate(program_ast, &mut local_variables, &mut result_code, uid);
         }
         result_code
     }
@@ -27,14 +23,14 @@ impl FunctionAST {
 impl StatementASTNode {
     fn generate(
         &self,
-        global_variables: &[GlobalVariableAST],
-        local_variables: &mut Vec<LocalVariableAST>,
+        program_ast: &ProgramAST,
+        local_variables: &mut Vec<Vec<LocalVariableAST>>,
         result_code: &mut String,
         uid: &mut usize,
     ) {
         match self {
             StatementASTNode::LocalVariableAST(lvs @ LocalVariableAST { name: lv }) => {
-                local_variables.push(lvs.clone());
+                local_variables[local_variables.len() - 1].push(lvs.clone());
             }
             StatementASTNode::AssignmentAST(AssignmentAST {
                 target_var_name,
@@ -66,23 +62,22 @@ impl StatementASTNode {
                     target_var_name: condition_buf.clone(),
                     value: condition.clone(),
                 });
-                assign_condition_statement.generate(
-                    global_variables,
-                    local_variables,
-                    result_code,
-                    uid,
-                );
+                assign_condition_statement.generate(program_ast, local_variables, result_code, uid);
 
                 result_code.push_str(&format!("jump {} equal {} 0\n", else_label, condition_buf));
+                local_variables.push(Vec::new());
                 for then_statement in then_block {
-                    then_statement.generate(global_variables, local_variables, result_code, uid);
+                    then_statement.generate(program_ast, local_variables, result_code, uid);
                 }
+                local_variables.pop();
 
                 result_code.push_str(&else_label);
                 result_code.push_str(":\n");
+                local_variables.push(Vec::new());
                 for else_statement in else_block {
-                    else_statement.generate(global_variables, local_variables, result_code, uid);
+                    else_statement.generate(program_ast, local_variables, result_code, uid);
                 }
+                local_variables.pop();
             }
             StatementASTNode::WhileAST(WhileAST {
                 condition,
@@ -107,10 +102,10 @@ impl StatementASTNode {
                 ));
 
                 for do_statement in do_block {
-                    do_statement.generate(global_variables, local_variables, result_code, uid);
+                    do_statement.generate(program_ast, local_variables, result_code, uid);
                 }
 
-                result_code.push_str(&format!("jump {} always", while_begin_label));
+                result_code.push_str(&format!("jump {} always\n", while_begin_label));
 
                 result_code.push_str(&while_end_label);
                 result_code.push_str(":\n");
@@ -120,5 +115,49 @@ impl StatementASTNode {
 }
 
 impl FunctionCallAST {
-    fn generate(&self) {}
+    fn generate(
+        &self,
+        program_ast: &ProgramAST,
+        target_variable: &str,
+        result_code: &mut String,
+        uid: &mut usize,
+    ) {
+        match self.function_name.as_str() {
+            "add" => {
+                assert!(
+                    self.args.len() == 2,
+                    "Builtin function add requires exactly two arguments"
+                );
+
+                let tmp_1 = format!("tmp_{}", uid);
+                *uid += 1;
+                let tmp_2 = format!("tmp_{}", uid);
+                *uid += 1;
+
+                //TODO
+
+                result_code.push_str(&format!("op add {} {} {}", target_variable, tmp_1, tmp_2));
+            }
+            function_name => {
+                let function_ast = program_ast
+                    .functions
+                    .get(function_name)
+                    .expect(&format!("Function {} not defined", function_name));
+
+                match &function_ast.style {
+                    FunctionStyle::Normal => {
+                        let ret_addr_buf = format!("ret_addr_{}", function_name);
+                        let result_buf = format!("{}_result", function_name);
+
+                        result_code.push_str(&format!(
+                            "op add {} @counter 1\njump {} always\n",
+                            ret_addr_buf, function_name
+                        ));
+                        result_code.push_str(&format!("set {} {}", target_variable, result_buf));
+                    }
+                    FunctionStyle::Inline => todo!(),
+                }
+            }
+        }
+    }
 }
