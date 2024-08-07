@@ -1,5 +1,6 @@
 mod parser;
 mod tokenizer;
+mod mlog_generator;
 
 use clap;
 use clap::Parser;
