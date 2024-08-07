@@ -35,32 +35,32 @@ enum FunctionStyle {
 #[derive(Debug)]
 pub struct FunctionAST {
     name: String,
-    statements: Vec<StatementASTNode>,
+    pub(crate) statements: Vec<StatementASTNode>,
     style: FunctionStyle,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LocalVariableAST {
-    name: String,
+    pub(crate) name: String,
 }
 
 #[derive(Debug)]
 pub struct AssignmentAST {
-    target_var_name: String,
-    value: ExpressionASTNode,
+    pub(crate) target_var_name: String,
+    pub(crate) value: ExpressionASTNode,
 }
 
 #[derive(Debug)]
 pub struct IfAST {
-    condition: ExpressionASTNode,
-    then_block: Vec<StatementASTNode>,
-    else_block: Vec<StatementASTNode>,
+    pub(crate) condition: ExpressionASTNode,
+    pub(crate) then_block: Vec<StatementASTNode>,
+    pub(crate) else_block: Vec<StatementASTNode>,
 }
 
 #[derive(Debug)]
 pub struct WhileAST {
-    condition: ExpressionASTNode,
-    do_block: Vec<StatementASTNode>,
+    pub(crate) condition: ExpressionASTNode,
+    pub(crate) do_block: Vec<StatementASTNode>,
 }
 
 #[derive(Debug)]
@@ -74,8 +74,8 @@ pub enum StatementASTNode {
 
 #[derive(Debug)]
 pub struct FunctionCallAST {
-    function_name: String,
-    args: Vec<ExpressionASTNode>,
+    pub(crate) function_name: String,
+    pub(crate) args: Vec<ExpressionASTNode>,
 }
 
 #[derive(Debug)]
