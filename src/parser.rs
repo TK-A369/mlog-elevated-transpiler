@@ -27,9 +27,16 @@ pub struct GlobalVariableAST {
 }
 
 #[derive(Debug)]
+enum FunctionStyle {
+    Normal,
+    Inline,
+}
+
+#[derive(Debug)]
 pub struct FunctionAST {
     name: String,
     statements: Vec<StatementASTNode>,
+    style: FunctionStyle,
 }
 
 #[derive(Debug)]
@@ -99,7 +106,6 @@ pub fn parse_program(tokens: &[Token]) -> Result<ProgramAST, String> {
             Ok(ProgramASTNode::FunctionAST(func)) => {
                 program_ast.functions.insert(func.name.clone(), func);
             }
-            Ok(_) => unreachable!(),
             Err(err) => return Err(err),
         }
     }
@@ -124,6 +130,11 @@ fn parse_global_variable(tokens: &[Token], pos: &mut usize) -> Result<GlobalVari
 
 fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, String> {
     let pos_orig = *pos;
+    let mut style = FunctionStyle::Normal;
+    if matches!(&tokens[*pos], Token::Keyword(Keyword::Inline)) {
+        *pos += 1;
+        style = FunctionStyle::Inline;
+    }
     match (&tokens[*pos], &tokens[*pos + 1], &tokens[*pos + 2]) {
         (
             Token::Keyword(Keyword::Fn),
@@ -174,6 +185,7 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
                 Ok(statements) => Ok(FunctionAST {
                     name: fn_name.clone(),
                     statements,
+                    style,
                 }),
                 Err(err) => {
                     *pos = pos_orig;
@@ -181,7 +193,10 @@ fn parse_function(tokens: &[Token], pos: &mut usize) -> Result<FunctionAST, Stri
                 }
             }
         }
-        _ => Err(String::from("Invalid function definition")),
+        _ => {
+            *pos = pos_orig;
+            Err(String::from("Invalid function definition"))
+        }
     }
 }
 

@@ -5,6 +5,7 @@ pub enum Keyword {
     If,
     Else,
     While,
+    Inline,
     LeftCurly,
     RightCurly,
     LeftParenthese,
@@ -54,6 +55,7 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                     "if" => Token::Keyword(Keyword::If),
                     "else" => Token::Keyword(Keyword::Else),
                     "while" => Token::Keyword(Keyword::While),
+                    "inline" => Token::Keyword(Keyword::Inline),
                     _ => Token::Identifier(identifier),
                 };
                 result.push(token);
