@@ -11,8 +11,8 @@ fn mangle_variable(
     local_variables: &[VariableScope],
 ) -> Option<String> {
     for lvs in local_variables.iter().rev() {
-        for lv in lvs.variables {
-            if lv == variable_name {
+        for lv in &lvs.variables {
+            if lv.name == variable_name {
                 let mut mangled_name = String::from(variable_name);
                 mangled_name.push_str(&lvs.mangle);
                 return Some(mangled_name);
