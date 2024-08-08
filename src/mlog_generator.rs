@@ -40,6 +40,23 @@ impl ProgramAST {
     pub fn generate(&self) -> String {
         let mut result_code = String::new();
         let mut uid: usize = 0;
+
+        let mut functions_codes = Vec::<String>::new();
+        for (function_name, function_ast) in &self.functions {
+            functions_codes.push(function_ast.generate(&self, &mut uid));
+        }
+
+        let main_call_statement =
+            StatementASTNode::ExpressionAST(ExpressionASTNode::FunctionCallAST(FunctionCallAST {
+                function_name: "main".into(),
+                args: Vec::new(),
+            }));
+        main_call_statement.generate(&self, &mut Vec::new(), &mut result_code, &mut uid);
+
+        for function_code in functions_codes {
+            result_code.push_str(&function_code);
+        }
+
         result_code
     }
 }
