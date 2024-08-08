@@ -1,5 +1,41 @@
 use crate::parser::*;
 
+struct VariableScope {
+    variables: Vec<LocalVariableAST>,
+    mangle: String,
+}
+
+fn mangle_variable(
+    variable_name: &str,
+    global_variables: &std::collections::BTreeMap<String, GlobalVariableAST>,
+    local_variables: &[VariableScope],
+) -> Option<String> {
+    for lvs in local_variables.iter().rev() {
+        for lv in lvs.variables {
+            if lv == variable_name {
+                let mut mangled_name = String::from(variable_name);
+                mangled_name.push_str(&lvs.mangle);
+                return Some(mangled_name);
+            }
+        }
+    }
+
+    if let Some(gv) = global_variables.get(variable_name) {
+        return Some(variable_name.into());
+    } else {
+        return None;
+    }
+}
+
+impl VariableScope {
+    fn new(mangle: &str) -> Self {
+        Self {
+            variables: Vec::new(),
+            mangle: mangle.into(),
+        }
+    }
+}
+
 impl ProgramAST {
     pub fn generate(&self) -> String {
         let mut result_code = String::new();
@@ -11,8 +47,10 @@ impl ProgramAST {
 impl FunctionAST {
     fn generate(&self, program_ast: &ProgramAST, uid: &mut usize) -> String {
         let mut result_code = String::new();
-        let mut local_variables = Vec::<Vec<LocalVariableAST>>::new();
-        local_variables.push(Vec::<LocalVariableAST>::new());
+        let mut local_variables = Vec::<VariableScope>::new();
+        let local_mangle = format!("_{}", uid);
+        *uid += 1;
+        local_variables.push(VariableScope::new(&local_mangle));
         for statement in &self.statements {
             statement.generate(program_ast, &mut local_variables, &mut result_code, uid);
         }
@@ -24,20 +62,39 @@ impl StatementASTNode {
     fn generate(
         &self,
         program_ast: &ProgramAST,
-        local_variables: &mut Vec<Vec<LocalVariableAST>>,
+        local_variables: &mut Vec<VariableScope>,
         result_code: &mut String,
         uid: &mut usize,
     ) {
         match self {
             StatementASTNode::LocalVariableAST(lvs @ LocalVariableAST { name: lv }) => {
-                local_variables[local_variables.len() - 1].push(lvs.clone());
+                let last_pos = local_variables.len() - 1;
+                local_variables[last_pos].variables.push(lvs.clone());
             }
             StatementASTNode::AssignmentAST(AssignmentAST {
                 target_var_name,
                 value,
             }) => {
-                todo!();
-                //match value {}
+                //todo!();
+                let target_var_name_mangled =
+                    mangle_variable(target_var_name, &program_ast.variables, &local_variables)
+                        .expect(&format!("Variable {} not defined", target_var_name));
+                match value {
+                    ExpressionASTNode::FunctionCallAST(fc) => {
+                        fc.generate(program_ast, &target_var_name_mangled, result_code, uid);
+                    }
+                    ExpressionASTNode::StringLiteral(sl) => {
+                        //TODO: escape string properly
+                        result_code
+                            .push_str(&format!("set {} \"{}\"", &target_var_name_mangled, sl));
+                    }
+                    ExpressionASTNode::NumberLiteral(nl) => {
+                        result_code.push_str(&format!("set {} {}", &target_var_name_mangled, nl));
+                    }
+                    ExpressionASTNode::VariableReference(vr) => {
+                        result_code.push_str(&format!("set {} {}", &target_var_name_mangled, vr));
+                    }
+                }
             }
             StatementASTNode::ExpressionAST(expr) => match expr {
                 ExpressionASTNode::FunctionCallAST(FunctionCallAST {
@@ -57,6 +114,10 @@ impl StatementASTNode {
                 *uid += 1;
                 let condition_buf = format!("cond_{}", uid);
                 *uid += 1;
+                let then_mangle = format!("_{}", uid);
+                *uid += 1;
+                let else_mangle = format!("_{}", uid);
+                *uid += 1;
 
                 let assign_condition_statement = StatementASTNode::AssignmentAST(AssignmentAST {
                     target_var_name: condition_buf.clone(),
@@ -65,7 +126,7 @@ impl StatementASTNode {
                 assign_condition_statement.generate(program_ast, local_variables, result_code, uid);
 
                 result_code.push_str(&format!("jump {} equal {} 0\n", else_label, condition_buf));
-                local_variables.push(Vec::new());
+                local_variables.push(VariableScope::new(&then_mangle));
                 for then_statement in then_block {
                     then_statement.generate(program_ast, local_variables, result_code, uid);
                 }
@@ -73,7 +134,7 @@ impl StatementASTNode {
 
                 result_code.push_str(&else_label);
                 result_code.push_str(":\n");
-                local_variables.push(Vec::new());
+                local_variables.push(VariableScope::new(&else_mangle));
                 for else_statement in else_block {
                     else_statement.generate(program_ast, local_variables, result_code, uid);
                 }
