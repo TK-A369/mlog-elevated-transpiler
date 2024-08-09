@@ -1,0 +1,17 @@
+fn main() {
+	let myVar1
+	myVar1 = 2
+	let myVar2
+	myVar2 = 5
+	let myVar3
+	myVar3 = add(myVar1, myVar2)
+
+	if equal(myVar3, 7) {
+		let otherVar
+		otherVar = add(7, 2)
+	}
+	else {
+		let anotherVar
+		anotherVar = 4
+	}
+}
