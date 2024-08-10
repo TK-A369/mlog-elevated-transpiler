@@ -1,5 +1,7 @@
 use crate::parser::*;
 
+use lazy_static;
+
 #[derive(Debug)]
 struct VariableScope {
     variables: Vec<LocalVariableAST>,
@@ -28,6 +30,7 @@ fn mangle_variable(
     if let Some(gv) = global_variables.get(variable_name) {
         return Some(variable_name.into());
     } else {
+        println!("Not found variable {}", variable_name);
         return None;
     }
 }
@@ -269,6 +272,145 @@ impl StatementASTNode {
     }
 }
 
+fn make_tmp_variable(
+    value: &Option<ExpressionASTNode>,
+    program_ast: &ProgramAST,
+    local_variables: &mut Vec<VariableScope>,
+    result_code: &mut String,
+    uid: &mut usize,
+) -> String {
+    let tmp_name = format!("tmp_{}", uid);
+    *uid += 1;
+
+    let declare_tmp_statement = StatementASTNode::LocalVariableAST(LocalVariableAST {
+        name: tmp_name.clone(),
+    });
+    declare_tmp_statement.generate(program_ast, local_variables, result_code, uid);
+
+    if let Some(value_expr) = value {
+        let assignment_statement = StatementASTNode::AssignmentAST(AssignmentAST {
+            target_var_name: mangle_variable(&tmp_name, &program_ast.variables, local_variables)
+                .unwrap(),
+            value: value_expr.clone(),
+        });
+        assignment_statement.generate(program_ast, local_variables, result_code, uid);
+    }
+
+    tmp_name
+}
+
+fn make_tmp_variables<const COUNT: usize>(
+    values: &[Option<ExpressionASTNode>; COUNT],
+    program_ast: &ProgramAST,
+    local_variables: &mut Vec<VariableScope>,
+    result_code: &mut String,
+    uid: &mut usize,
+) -> [String; COUNT] {
+    const EMPTY_STRING: String = String::new();
+    let mut result: [String; COUNT] = [EMPTY_STRING; COUNT];
+    for i in 0..COUNT {
+        result[i] = make_tmp_variable(&values[i], program_ast, local_variables, result_code, uid);
+    }
+    result
+}
+
+lazy_static::lazy_static! (
+    static ref BINARY_OPS: Vec<&'static str> = {
+        vec!["add", "sub", "mul", "div"] //TODO: Add rest
+    };
+
+    static ref BUILTIN_FUNCTIONS: std::sync::Mutex<
+        std::collections::BTreeMap<&'static str, Box<dyn FnMut(
+            &[ExpressionASTNode], &ProgramAST, &mut Vec<VariableScope>, &str, &mut String, &mut usize
+        ) + Send + Sync>>
+    > = {
+        let mut m: std::collections::BTreeMap<&'static str, Box<dyn FnMut(
+            &[ExpressionASTNode], &ProgramAST, &mut Vec<VariableScope>, &str, &mut String, &mut usize
+        ) + Send + Sync>> = std::collections::BTreeMap::new();
+
+        for binary_op in BINARY_OPS.iter() {
+            m.insert(binary_op, Box::new(
+                move |
+                    args: &[ExpressionASTNode],
+                    program_ast: &ProgramAST,
+                    local_variables: &mut Vec<VariableScope>,
+                    target_variable: &str,
+                    result_code: &mut String,
+                    uid: &mut usize
+                | {
+                    let tmps: [String; 2] = make_tmp_variables(
+                        &[Some(args[0].clone()), Some(args[1].clone())], program_ast, local_variables, result_code, uid);
+
+                    result_code.push_str(&format!(
+                        "op {} {} {} {}\n",
+                        binary_op,
+                        mangle_variable(target_variable, &program_ast.variables, local_variables)
+                            .unwrap(),
+                        mangle_variable(&tmps[0], &program_ast.variables, local_variables).unwrap(),
+                        mangle_variable(&tmps[1], &program_ast.variables, local_variables).unwrap()
+                    ));
+                }
+            ));
+        }
+
+        m.insert("radar", Box::new(
+            |
+                args: &[ExpressionASTNode],
+                program_ast: &ProgramAST,
+                local_variables: &mut Vec<VariableScope>,
+                target_variable: &str,
+                result_code: &mut String,
+                uid: &mut usize
+            | {
+                result_code.push_str(&format!(
+                    "radar {} {} {} {} {} {} {}",
+                    //1st filter
+                    if let ExpressionASTNode::StringLiteral(arg) = &args[0] {
+                        arg
+                    } else {
+                        panic!("1st argument to radar function must be string")
+                    },
+                    //2nd filter
+                    if let ExpressionASTNode::StringLiteral(arg) = &args[1] {
+                        arg
+                    } else {
+                        panic!("2nd argument to radar function must be string")
+                    },
+                    //3rd filter
+                    if let ExpressionASTNode::StringLiteral(arg) = &args[2] {
+                        arg
+                    } else {
+                        panic!("3rd argument to radar function must be string")
+                    },
+                    //sort criterion
+                    if let ExpressionASTNode::StringLiteral(arg) = &args[3] {
+                        arg
+                    } else {
+                        panic!("4th argument to radar function must be string")
+                    },
+                    //object which will be used for detection
+                    mangle_variable(
+                        if let ExpressionASTNode::VariableReference(arg) = &args[4] {
+                            &arg
+                        } else {
+                            panic!("5th argument to radar function must be variable reference")
+                        }, &program_ast.variables, local_variables).unwrap(),
+                    //order
+                    if let ExpressionASTNode::NumberLiteral(arg) = args[5] {
+                        arg
+                    } else {
+                        panic!("6th argument to radar function must be number")
+                    },
+                    //output variable
+                    mangle_variable(target_variable, &program_ast.variables, local_variables).unwrap()
+                ));
+            }
+        ));
+
+        std::sync::Mutex::new(m)
+    };
+);
+
 impl FunctionCallAST {
     fn generate(
         &self,
@@ -283,7 +425,21 @@ impl FunctionCallAST {
             &self.function_name, target_variable
         );
         println!("Local variables:\n{:?}", local_variables);
+        let mut builtin_functions_locked = BUILTIN_FUNCTIONS.lock().unwrap();
         match self.function_name.as_str() {
+            builtin_fn if builtin_functions_locked.get(builtin_fn).is_some() => {
+                let mut builtin_fn_generator_fn =
+                    builtin_functions_locked.get_mut(builtin_fn).unwrap();
+                println!("Calling builtin function {}", builtin_fn);
+                (*builtin_fn_generator_fn)(
+                    &self.args,
+                    program_ast,
+                    local_variables,
+                    target_variable,
+                    result_code,
+                    uid,
+                );
+            }
             "add" => {
                 assert!(
                     self.args.len() == 2,
