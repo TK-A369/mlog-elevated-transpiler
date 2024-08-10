@@ -286,11 +286,17 @@ fn make_tmp_variable(
         name: tmp_name.clone(),
     });
     declare_tmp_statement.generate(program_ast, local_variables, result_code, uid);
+    println!(
+        "Declaring temporary variable {}, after mangling {}",
+        tmp_name,
+        mangle_variable(&tmp_name, &program_ast.variables, local_variables).unwrap()
+    );
+    println!("Backtrace: {}", std::backtrace::Backtrace::capture());
 
     if let Some(value_expr) = value {
+        println!("And assigning value {:?} to it", &value_expr);
         let assignment_statement = StatementASTNode::AssignmentAST(AssignmentAST {
-            target_var_name: mangle_variable(&tmp_name, &program_ast.variables, local_variables)
-                .unwrap(),
+            target_var_name: tmp_name.clone(),
             value: value_expr.clone(),
         });
         assignment_statement.generate(program_ast, local_variables, result_code, uid);
@@ -338,8 +344,10 @@ lazy_static::lazy_static! (
                     result_code: &mut String,
                     uid: &mut usize
                 | {
+                    println!("Binary operation {} called with arguments {:?}", binary_op, args);
                     let tmps: [String; 2] = make_tmp_variables(
                         &[Some(args[0].clone()), Some(args[1].clone())], program_ast, local_variables, result_code, uid);
+                    println!("Tmps: {:?}", tmps);
 
                     result_code.push_str(&format!(
                         "op {} {} {} {}\n",
@@ -421,15 +429,18 @@ impl FunctionCallAST {
         uid: &mut usize,
     ) {
         println!(
-            "Calling function {} and saving result to variable {}",
-            &self.function_name, target_variable
+            "Calling function {} with arguments {:?} and saving result to variable {}",
+            &self.function_name, self.args, target_variable
         );
         println!("Local variables:\n{:?}", local_variables);
         let mut builtin_functions_locked = BUILTIN_FUNCTIONS.lock().unwrap();
         match self.function_name.as_str() {
             builtin_fn if builtin_functions_locked.get(builtin_fn).is_some() => {
-                let mut builtin_fn_generator_fn =
-                    builtin_functions_locked.get_mut(builtin_fn).unwrap();
+                let local_mangle = format!("_{}", uid);
+                *uid += 1;
+                local_variables.push(VariableScope::new(&local_mangle));
+
+                let builtin_fn_generator_fn = builtin_functions_locked.get_mut(builtin_fn).unwrap();
                 println!("Calling builtin function {}", builtin_fn);
                 (*builtin_fn_generator_fn)(
                     &self.args,
@@ -439,6 +450,8 @@ impl FunctionCallAST {
                     result_code,
                     uid,
                 );
+
+                local_variables.pop();
             }
             "add" => {
                 assert!(
