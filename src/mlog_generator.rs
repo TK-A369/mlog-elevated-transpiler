@@ -183,6 +183,8 @@ impl StatementASTNode {
             }) => {
                 let else_label = format!("else_{}", uid);
                 *uid += 1;
+                let if_end_label = format!("if_end_{}", uid);
+                *uid += 1;
                 let cond_var = format!("cond_{}", uid);
                 *uid += 1;
                 let cond_mangle = format!("_{}", uid);
@@ -214,6 +216,7 @@ impl StatementASTNode {
                     then_statement.generate(program_ast, local_variables, result_code, uid);
                 }
                 local_variables.pop();
+                result_code.push_str(&format!("jump {} always\n", if_end_label));
 
                 result_code.push_str(&else_label);
                 result_code.push_str(":\n");
@@ -222,6 +225,8 @@ impl StatementASTNode {
                     else_statement.generate(program_ast, local_variables, result_code, uid);
                 }
                 local_variables.pop();
+                result_code.push_str(&if_end_label);
+                result_code.push_str(":\n");
             }
             StatementASTNode::WhileAST(WhileAST {
                 condition,
