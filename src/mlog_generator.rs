@@ -477,7 +477,7 @@ lazy_static::lazy_static! (
                 );
 
                 result_code.push_str(&format!(
-                    "ucontrol move {} {} {} {} 0\n",
+                    "ucontrol within {} {} {} {} 0\n",
                     mangle_variable(&tmps[0], &program_ast.variables, local_variables).unwrap(),
                     mangle_variable(&tmps[1], &program_ast.variables, local_variables).unwrap(),
                     mangle_variable(&tmps[2], &program_ast.variables, local_variables).unwrap(),
