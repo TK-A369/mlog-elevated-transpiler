@@ -243,15 +243,17 @@ impl StatementASTNode {
                     });
                 declare_cond_buf_statement.generate(program_ast, local_variables, result_code, uid);
 
+                result_code.push_str(&while_begin_label);
+                result_code.push_str(":\n");
+
                 let assign_condition_statement = StatementASTNode::AssignmentAST(AssignmentAST {
                     target_var_name: condition_buf.clone(),
                     value: condition.clone(),
                 });
                 assign_condition_statement.generate(program_ast, local_variables, result_code, uid);
 
-                result_code.push_str(&while_begin_label);
                 result_code.push_str(&format!(
-                    ":\njump {} equal {} 0\n",
+                    "jump {} equal {} 0\n",
                     while_end_label,
                     mangle_variable(&condition_buf, &program_ast.variables, local_variables)
                         .unwrap()
@@ -322,7 +324,7 @@ fn make_tmp_variables<const COUNT: usize>(
 
 lazy_static::lazy_static! (
     static ref BINARY_OPS: Vec<&'static str> = {
-        vec!["add", "sub", "mul", "div"] //TODO: Add rest
+        vec!["add", "sub", "mul", "div", "equal"] //TODO: Add rest
     };
 
     static ref BUILTIN_FUNCTIONS: std::sync::Mutex<
@@ -346,7 +348,9 @@ lazy_static::lazy_static! (
                 | {
                     println!("Binary operation {} called with arguments {:?}", binary_op, args);
                     let tmps: [String; 2] = make_tmp_variables(
-                        &[Some(args[0].clone()), Some(args[1].clone())], program_ast, local_variables, result_code, uid);
+                        &[Some(args[0].clone()), Some(args[1].clone())],
+                        program_ast, local_variables, result_code, uid
+                    );
                     println!("Tmps: {:?}", tmps);
 
                     result_code.push_str(&format!(
@@ -371,7 +375,7 @@ lazy_static::lazy_static! (
                 uid: &mut usize
             | {
                 result_code.push_str(&format!(
-                    "radar {} {} {} {} {} {} {}",
+                    "radar {} {} {} {} {} {} {}\n",
                     //1st filter
                     if let ExpressionASTNode::StringLiteral(arg) = &args[0] {
                         arg
@@ -415,6 +419,73 @@ lazy_static::lazy_static! (
             }
         ));
 
+        m.insert("ubind", Box::new(
+            |
+                args: &[ExpressionASTNode],
+                program_ast: &ProgramAST,
+                local_variables: &mut Vec<VariableScope>,
+                target_variable: &str,
+                result_code: &mut String,
+                uid: &mut usize
+            | {
+                result_code.push_str(&format!(
+                    "ubind {}\n",
+                    mangle_variable(
+                        if let ExpressionASTNode::VariableReference(arg) = &args[0] {
+                            &arg
+                        } else {
+                            panic!("1st argument to ubind function must be variable reference");
+                        }, &program_ast.variables, local_variables).unwrap()
+                ));
+            }
+        ));
+
+        m.insert("ucontrolMove", Box::new(
+            |
+                args: &[ExpressionASTNode],
+                program_ast: &ProgramAST,
+                local_variables: &mut Vec<VariableScope>,
+                target_variable: &str,
+                result_code: &mut String,
+                uid: &mut usize
+            | {
+                let tmps: [String; 2] = make_tmp_variables(
+                    &[Some(args[0].clone()), Some(args[1].clone())],
+                    program_ast, local_variables, result_code, uid
+                );
+
+                result_code.push_str(&format!(
+                    "ucontrol move {} {} 0 0 0\n",
+                    mangle_variable(&tmps[0], &program_ast.variables, local_variables).unwrap(),
+                    mangle_variable(&tmps[1], &program_ast.variables, local_variables).unwrap()
+                ));
+            }
+        ));
+
+        m.insert("ucontrolWithin", Box::new(
+            |
+                args: &[ExpressionASTNode],
+                program_ast: &ProgramAST,
+                local_variables: &mut Vec<VariableScope>,
+                target_variable: &str,
+                result_code: &mut String,
+                uid: &mut usize
+            | {
+                let tmps: [String; 3] = make_tmp_variables(
+                    &[Some(args[0].clone()), Some(args[1].clone()), Some(args[2].clone())],
+                    program_ast, local_variables, result_code, uid
+                );
+
+                result_code.push_str(&format!(
+                    "ucontrol move {} {} {} {} 0\n",
+                    mangle_variable(&tmps[0], &program_ast.variables, local_variables).unwrap(),
+                    mangle_variable(&tmps[1], &program_ast.variables, local_variables).unwrap(),
+                    mangle_variable(&tmps[2], &program_ast.variables, local_variables).unwrap(),
+                    mangle_variable(target_variable, &program_ast.variables, local_variables).unwrap()
+                ));
+            }
+        ));
+
         std::sync::Mutex::new(m)
     };
 );
@@ -452,55 +523,6 @@ impl FunctionCallAST {
                 );
 
                 local_variables.pop();
-            }
-            "add" => {
-                assert!(
-                    self.args.len() == 2,
-                    "Builtin function add requires exactly two arguments"
-                );
-
-                let tmp_1 = format!("tmp_{}", uid);
-                *uid += 1;
-                let tmp_2 = format!("tmp_{}", uid);
-                *uid += 1;
-                let tmp_mangle = format!("_{}", uid);
-                *uid += 1;
-
-                local_variables.push(VariableScope::new(&tmp_mangle));
-                let declare_tmp_1_statement =
-                    StatementASTNode::LocalVariableAST(LocalVariableAST {
-                        name: tmp_1.clone(),
-                    });
-                declare_tmp_1_statement.generate(program_ast, local_variables, result_code, uid);
-                let declare_tmp_2_statement =
-                    StatementASTNode::LocalVariableAST(LocalVariableAST {
-                        name: tmp_2.clone(),
-                    });
-                declare_tmp_2_statement.generate(program_ast, local_variables, result_code, uid);
-
-                let compute_arg_1_statement = StatementASTNode::AssignmentAST(AssignmentAST {
-                    target_var_name: tmp_1.clone(),
-                    value: self.args[0].clone(),
-                });
-                compute_arg_1_statement.generate(program_ast, local_variables, result_code, uid);
-                let compute_arg_2_statement = StatementASTNode::AssignmentAST(AssignmentAST {
-                    target_var_name: tmp_2.clone(),
-                    value: self.args[1].clone(),
-                });
-                compute_arg_2_statement.generate(program_ast, local_variables, result_code, uid);
-
-                result_code.push_str(&format!(
-                    "op add {} {} {}\n",
-                    mangle_variable(target_variable, &program_ast.variables, local_variables)
-                        .unwrap(),
-                    mangle_variable(&tmp_1, &program_ast.variables, local_variables).unwrap(),
-                    mangle_variable(&tmp_2, &program_ast.variables, local_variables).unwrap()
-                ));
-
-                local_variables.pop();
-            }
-            "radar" | "ubind" | "equal" | "ucontrolMove" | "ucontrolWithin" | "sub" => {
-                //TODO
             }
             function_name => {
                 let function_ast = program_ast
